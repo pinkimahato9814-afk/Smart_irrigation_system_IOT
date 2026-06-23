@@ -13,8 +13,6 @@
 #define WIFI_SSID "realmeC51"
 #define WIFI_PASSWORD "87654321"
 
-//It is an internet protocol used to synchronize the clocks of computers, servers,
-// and network devices (like routers and switches) to a precise, standardized time source. 
 // NTP time
 #define NTP_SERVER_1 "pool.ntp.org"
 #define NTP_SERVER_2 "time.nist.gov"
@@ -41,114 +39,57 @@ const int RELAY_OFF = RELAY_ACTIVE_LOW ? HIGH : LOW;
 // Upload interval
 const unsigned long UPLOAD_INTERVAL_MS = 1000;
 
-FirebaseData fbdo; //Creates an object to send requests  to firebase Receives responses from Firebase 
-FirebaseAuth auth;           // used for firebase authentication 
+FirebaseData fbdo;
+FirebaseAuth auth;
 FirebaseConfig config;
 
 unsigned long lastUploadMs = 0;
 
-// ============== WiFi Connection Tracking ==============
-unsigned long wifiStartTime = 0;  // When we started trying to connect
-
 void WiFiEvent(WiFiEvent_t event) {
-  Serial.printf("[WiFi] Event: %d\n", event);
+  Serial.printf("WiFi event: %d\n", event);
 }
 
-void printElapsedTime() {
-  unsigned long elapsed = millis() - wifiStartTime;
-  unsigned long seconds = elapsed / 1000;
-  unsigned long minutes = seconds / 60;
-  seconds = seconds % 60;
-  
-  Serial.print("[WiFi] Elapsed: ");
-  if (minutes > 0) {
-    Serial.print(minutes);
-    Serial.print("m ");
-  }
-  Serial.print(seconds);
-  Serial.print("s | Status: ");
-  Serial.print(WiFi.status());
-  Serial.print(" | RSSI: ");
-  Serial.print(WiFi.RSSI());
-  Serial.println(" dBm");
-}
-
-// Try to connect using pattern from original working code
-// Returns true if connected, false otherwise
 bool tryConnectWiFiOnce() {
+  WiFi.onEvent(WiFiEvent);
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
 
-  // First try: Use ESP32's auto-saved credentials (from last successful connection)
-  Serial.println("[WiFi] Trying auto-connect (saved credentials)...");
+  Serial.println("Starting WiFi (auto)...");
   WiFi.begin();
 
   unsigned long start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
-    printElapsedTime();
+    Serial.printf("status=%d\n", WiFi.status());
     delay(1000);
   }
 
-  // If auto-connect failed, try with explicit credentials
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[WiFi] Auto-connect failed, trying explicit credentials...");
+    Serial.println("Auto-connect failed, trying new WiFi...");
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
     start = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
-      printElapsedTime();
+      Serial.printf("status=%d\n", WiFi.status());
       delay(1000);
     }
   }
 
   if (WiFi.status() == WL_CONNECTED) {
-    unsigned long totalTime = millis() - wifiStartTime;
-    Serial.println();
-    Serial.println("========================================");
-    Serial.print("[WiFi] SUCCESS! Connected in ");
-    Serial.print(totalTime);
-    Serial.println("ms");
-    Serial.print("[WiFi] IP: ");
+    Serial.print("Connected, IP: ");
     Serial.println(WiFi.localIP());
-    Serial.print("[WiFi] RSSI: ");
-    Serial.print(WiFi.RSSI());
-    Serial.println(" dBm");
-    Serial.println("========================================");
     return true;
   } else {
-    Serial.println("[WiFi] Connection attempt FAILED");
+    Serial.println("WiFi FAILED");
     return false;
   }
 }
 
-// Keep trying forever until connected - records elapsed time
 void waitForWiFi() {
-  // Record start time for tracking total connection time
-  wifiStartTime = millis();
-  
-  Serial.println();
-  Serial.println("========================================");
-  Serial.println("[WiFi] Starting connection attempts");
-  Serial.println("[WiFi] Will keep trying forever until connected");
-  Serial.println("========================================");
-  
-  WiFi.onEvent(WiFiEvent);
-  
-  int attemptCount = 0;
-  
   while (WiFi.status() != WL_CONNECTED) {
-    attemptCount++;
-    Serial.println();
-    Serial.print("[WiFi] ====== Attempt ");
-    Serial.print(attemptCount);
-    Serial.println(" ======");
-    
     if (tryConnectWiFiOnce()) {
-      return;  // Connected!
+      return;
     }
-    
-    // Wait 5 seconds before next attempt (same as original working code)
-    Serial.println("[WiFi] Waiting 5 seconds before retry...");
+    Serial.println("WiFi not connected, retrying in 5s...");
     delay(5000);
   }
 }
@@ -216,21 +157,12 @@ void setup() {
   Serial.begin(115200);
   delay(1500);
 
-  Serial.println();
-  Serial.println("========================================");
-  Serial.println("   Moisture Monitor - ESP32");
-  Serial.println("   Firebase Realtime Edition");
-  Serial.println("========================================");
-
   // Block until WiFi is connected; do not run other logic before this.
   waitForWiFi();
 
   initHardware();
   initTime();
   initFirebase();
-  
-  Serial.println();
-  Serial.println("[Setup] Initialization complete!");
 }
 
 void loop() {
